@@ -47,6 +47,15 @@ class TestSpintax(unittest.TestCase):
         set_up = set([spintax.spin("{a\||b\|}") for a in range(50)])
         self.assertEqual(set_up, {'b|', 'a|'})
 
+    def test_all(self):
+        res = spintax.spin('{Hello|Hi|Hey}',generate_all=True)
+        a = set(res)
+        b = set(['Hello', 'Hi', 'Hey'])
+        diff = a.symmetric_difference(b)
+        self.assertFalse(diff)
+    
+    def test_custom_spintax(self):
+        self.assertIn(spintax.spin('{[Hello|Hi]}', spintax_chars=('[','|',']')), ['{Hello}', '{Hi}'])
 
 if __name__ == '__main__':
     unittest.main()

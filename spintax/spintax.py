@@ -5,25 +5,58 @@ import warnings
 warnings.simplefilter('always', DeprecationWarning)
 
 
-def _replace_string(match):
+def _replace_string(string):
     """
-    Function to replace the spintax with a randomly chosen string
+    Function that generates all the strings for the options in the first {}
     :param match object:
     :return string:
     """
-    global spintax_seperator, random_string
-    test_string = re.sub(spintax_seperator, lambda x: x.group(1)+random_string, match.group(2))
-    random_picked = random.choice(re.split(random_string, test_string))
-    return match.group(1) + random_picked + match.group(3)
+    global spintax_seperator, spintax_bracket, random_string
+   
+    match = re.findall(spintax_bracket, string)
+    if not len(match):
+        return [string]
+    match = match[0]
+            
+    test_string = re.sub(spintax_seperator, lambda x: x[1]+random_string, match[1])
+    pattern = '{' + match[1].replace('\\','\\\\').replace('|','\|') + '}'
+    options = re.split(random_string, test_string)
+    res = [re.sub(pattern, option, string) for option in options]
+    #res = [match[0] + option + match[2] for option in options]
+    return res
 
+def prep_custom_spintax(string, spintax_chars):
+    characters = [chr(x) for x in range(1234, 1368)]    
+    
+    temp = ''.join(random.sample(characters, 30))
+    if spintax_chars[0] != '{':
+        string = string.replace('{', temp).replace(spintax_chars[0], '{').replace(temp, spintax_chars[0])
+    if spintax_chars[1] != '|':
+        string = string.replace('|', temp).replace(spintax_chars[1], '|').replace(temp, spintax_chars[1])
+    if spintax_chars[2] != '}':
+        string = string.replace('}', temp).replace(spintax_chars[2], '}').replace(temp, spintax_chars[2])
+    return string
 
-def spin(string, seed=None):
+def undo_custom_spintax(string, spintax_chars):
+    characters = [chr(x) for x in range(1234, 1368)]    
+    temp = ''.join(random.sample(characters, 30))
+    
+    if spintax_chars[0] != '{':
+        string = string.replace(spintax_chars[0], temp).replace('{', spintax_chars[0]).replace(temp, '{')
+    if spintax_chars[1] != '|':
+        string = string.replace(spintax_chars[1], temp).replace('|', spintax_chars[1]).replace(temp, '|')
+    if spintax_chars[2] != '}':
+        string = string.replace(spintax_chars[2], temp).replace('}', spintax_chars[2]).replace(temp, '}')
+    return string
+
+def spin(string, seed=None, generate_all:bool = False, spintax_chars:tuple = ('{','|','}')):
     """
     Function used to spin the spintax string
     :param string:
     :param seed:
     :return string:
     """
+    string = prep_custom_spintax(string, spintax_chars)
 
     # As look behinds have to be a fixed width I need to do a "hack" where
     # a temporary string is used. This string is randomly chosen. There are
@@ -44,23 +77,36 @@ def spin(string, seed=None):
     spintax_seperator = r'((?:(?<!\\)(?:\\\\)*))(\|)'
     spintax_seperator = re.compile(spintax_seperator)
 
+    global spintax_bracket
     # Regex to find all non escaped spintax brackets
     spintax_bracket = r'(?<!\\)((?:\\{2})*)\{([^}{}]+)(?<!\\)((?:\\{2})*)\}'
     spintax_bracket = re.compile(spintax_bracket)
 
     # Need to iteratively apply the spinning because of nested spintax
-    while True:
-        new_string = re.sub(spintax_bracket, _replace_string, string)
-        if new_string == string:
-            break
-        string = new_string
+    if generate_all:
+        strings = [string]
+        
+        while True:
+            new_strings = [s for s in _replace_string(string) for string in strings]
+            
+            if not set(strings).symmetric_difference(set(new_strings)):
+                break
+            strings = new_strings
+        return [undo_custom_spintax(s, spintax_chars) for s in strings]
+    else:
+        while True:
+            res = _replace_string(string)         
+            new_string = random.choice(res)
+            if new_string == string:
+                break
+            string = new_string
 
-    # Replaces the literal |, {,and }.
-    string = re.sub(r'\\([{}|])', r'\1', string)
-    # Removes double \'s
-    string = re.sub(r'\\{2}', r'\\', string)
+        # Replaces the literal |, {,and }.
+        string = re.sub(r'\\([{}|])', r'\1', string)
+        # Removes double \'s
+        string = re.sub(r'\\{2}', r'\\', string)
 
-    return string
+        return undo_custom_spintax(string, spintax_chars)
 
 
 def parse(string, seed=None):
